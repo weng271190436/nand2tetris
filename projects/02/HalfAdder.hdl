@@ -1,0 +1,12 @@
+// File name: projects/2/HalfAdder.hdl
+/**
+ * Half adder: sum = LSB of a + b; carry = MSB of a + b
+ */
+CHIP HalfAdder {
+    IN a, b;
+    OUT sum, carry;
+
+    PARTS:
+    Xor(a=a, b=b, out=sum);
+    And(a=a, b=b, out=carry);
+}

@@ -1,0 +1,28 @@
+// File name: projects/3/PC.hdl
+/**
+ * A 16-bit counter.
+ * if      reset(t): out(t+1) = 0
+ * else if load(t):  out(t+1) = in(t)
+ * else if inc(t):   out(t+1) = out(t) + 1
+ * else              out(t+1) = out(t)
+ */
+CHIP PC {
+    IN in[16], reset, load, inc;
+    OUT out[16];
+
+    PARTS:
+    // increment current value
+    Inc16(in=feedback, out=incout);
+
+    // inc?
+    Mux16(a=feedback, b=incout, sel=inc, out=w1);
+
+    // load?
+    Mux16(a=w1, b=in, sel=load, out=w2);
+
+    // reset?
+    Mux16(a=w2, b=false, sel=reset, out=w3);
+
+    // store result
+    Register(in=w3, load=true, out=out, out=feedback);
+}
