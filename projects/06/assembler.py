@@ -31,19 +31,12 @@ def assemble(asm_path: Path) -> Path:
             rom_address += 1
 
     # Second pass: emit binary.
-    next_variable_address = 16
     out_lines: list[str] = []
 
     for cmd in commands:
         match cmd:
             case AInstruction(symbol=sym):
-                if sym.isdigit():
-                    value = int(sym)
-                else:
-                    if not symbols.contains(sym):
-                        symbols.add_entry(sym, next_variable_address)
-                        next_variable_address += 1
-                    value = symbols.get_address(sym)
+                value = int(sym) if sym.isdigit() else symbols.resolve(sym)
                 out_lines.append(f"0{value:015b}")
 
             case CInstruction(dest=d, comp=c, jump=j):
