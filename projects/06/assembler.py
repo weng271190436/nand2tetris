@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from parser import parse, AInstruction, CInstruction, LInstruction
-from code_module import Code
+import encoder
 from symbol_table import SymbolTable
 
 
@@ -47,7 +47,7 @@ def assemble(asm_path: Path) -> Path:
                 out_lines.append(f"0{value:015b}")
 
             case CInstruction(dest=d, comp=c, jump=j):
-                out_lines.append(f"111{Code.comp(c)}{Code.dest(d)}{Code.jump(j)}")
+                out_lines.append(f"111{encoder.comp(c)}{encoder.dest(d)}{encoder.jump(j)}")
 
             case LInstruction():
                 pass  # already handled in pass 1
