@@ -12,3 +12,6 @@ venv/
 
 # nand2tetris build artifacts
 *.hack
+
+# Archives
+*.zip
