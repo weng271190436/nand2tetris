@@ -244,14 +244,19 @@ class CodeWriter:
         self._emit(f"@{name}", "0;JMP", f"({ret_label})")
 
     def write_return(self) -> None:
-        """Emit asm for `return` — restore caller frame, place return value."""
+        """Emit asm for `return` — restore caller frame, place return value.
+
+        SAVED FRAME = the 5 cells `call` pushed (return addr + saved
+        LCL/ARG/THIS/THAT). The R13 bookmark starts at LCL — just past the
+        SAVED FRAME — and walks backward through it via AM=M-1.
+        """
         self._emit(
-            # FRAME (R13) = LCL  — temporary pointer to top of caller's saved frame.
+            # SAVED FRAME (R13) = LCL — bookmark just past the SAVED FRAME.
             "@LCL",
             "D=M",
             "@R13",
             "M=D",
-            # RET (R14) = *(FRAME - 5)  — stash the return address before we restore ARG.
+            # RET (R14) = *(SAVED FRAME - 5) — stash return address (cell 1).
             "@5",
             "A=D-A",
             "D=M",
@@ -269,31 +274,31 @@ class CodeWriter:
             "D=M+1",
             "@SP",
             "M=D",
-            # THAT = *(FRAME - 1)  — restore caller's THAT.
+            # THAT = *(SAVED FRAME - 1)  — cell 5 → restore caller's THAT.
             "@R13",
             "AM=M-1",
             "D=M",
             "@THAT",
             "M=D",
-            # THIS = *(FRAME - 2)
+            # THIS = *(SAVED FRAME - 2)  — cell 4.
             "@R13",
             "AM=M-1",
             "D=M",
             "@THIS",
             "M=D",
-            # ARG = *(FRAME - 3)
+            # ARG = *(SAVED FRAME - 3)   — cell 3.
             "@R13",
             "AM=M-1",
             "D=M",
             "@ARG",
             "M=D",
-            # LCL = *(FRAME - 4)
+            # LCL = *(SAVED FRAME - 4)   — cell 2.
             "@R13",
             "AM=M-1",
             "D=M",
             "@LCL",
             "M=D",
-            # goto RET
+            # goto RET (the address we stashed from SAVED FRAME cell 1).
             "@R14",
             "A=M",
             "0;JMP",
