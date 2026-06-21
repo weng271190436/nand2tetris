@@ -1,8 +1,6 @@
 """Tests for the VM translator.
 
 - TestParser exercises only the parser (no CodeWriter needed).
-- TestTranslation runs the full translator on every provided .vm file
-  and sanity-checks the output.
 - TestEndToEnd translates -> assembles (via Project 6) -> executes on a
   Python Hack CPU emulator, then checks final RAM state against the
   expected values declared in each .cmp file. Initial RAM and cycle
@@ -88,40 +86,6 @@ class TestParser(unittest.TestCase):
                 Arithmetic(op="add"),
             ],
         )
-
-
-class TestTranslation(unittest.TestCase):
-    """End-to-end smoke tests: translate, then sanity-check the .asm output."""
-
-    def tearDown(self) -> None:
-        for vm in VM_FILES:
-            for ext in (".asm", ".hack"):
-                out = vm.with_suffix(ext)
-                if out.exists():
-                    out.unlink()
-
-    def _check_translation(self, vm_path: Path) -> str:
-        asm_path = translate(vm_path)
-        self.assertTrue(asm_path.exists(), f"{asm_path} was not created")
-        content = asm_path.read_text()
-        self.assertGreater(len(content), 0, f"{asm_path} is empty")
-        self.assertIn("@SP", content, f"{asm_path} never references @SP")
-        return content
-
-    def test_simple_add(self) -> None:
-        self._check_translation(VM_FILES[0])
-
-    def test_stack_test(self) -> None:
-        self._check_translation(VM_FILES[1])
-
-    def test_basic_test(self) -> None:
-        self._check_translation(VM_FILES[2])
-
-    def test_pointer_test(self) -> None:
-        self._check_translation(VM_FILES[3])
-
-    def test_static_test(self) -> None:
-        self._check_translation(VM_FILES[4])
 
 
 class TestEndToEnd(unittest.TestCase):
