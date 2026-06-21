@@ -1,6 +1,7 @@
 """CodeWriter: emits Hack assembly for parsed VM commands.
 
-write_push and write_pop are stubs to be implemented.
+write_arithmetic, write_push, write_pop are implemented.
+The branching and function methods are stubs to be implemented.
 """
 
 from __future__ import annotations
@@ -44,10 +45,24 @@ _BASE_POINTER = {
 
 
 class CodeWriter:
-    def __init__(self, out_path: Path, vm_filename: str) -> None:
+    def __init__(self, out_path: Path) -> None:
         self._out: TextIO = out_path.open("w")
-        self._filename = vm_filename     # used for static segment naming
+        self._filename = ""              # set per .vm file via set_filename
+        self._function = ""              # current function (for label scoping)
         self._label_counter = 0          # used for eq/gt/lt unique labels
+        self._call_counter = 0           # used for unique return-address labels
+
+    def set_filename(self, vm_filename: str) -> None:
+        """Tell the writer which .vm file's commands are about to be emitted.
+
+        Affects static segment naming and label scoping for files without
+        explicit function declarations.
+        """
+        self._filename = vm_filename
+
+    def write_init(self) -> None:
+        """Emit the bootstrap: SP = 256, then call Sys.init."""
+        raise NotImplementedError
 
     def write_arithmetic(self, op: str) -> None:
         """Emit asm for add/sub/neg/eq/gt/lt/and/or/not."""
@@ -94,7 +109,6 @@ class CodeWriter:
 
     def write_push(self, segment: Segment, index: int) -> None:
         """Emit asm to push the value from segment[index] onto the stack."""
-        # 1. Load the value to push into D.
         match segment:
             case Segment.CONSTANT:
                 self._emit(f"@{index}", "D=A")
@@ -116,15 +130,13 @@ class CodeWriter:
             case _:
                 raise ValueError(f"Unknown segment: {segment}")
 
-        # 2. Push D onto the stack: RAM[SP] = D; SP++.
         self._emit(
             "@SP",
-            "A=M",                   # A = SP (next free slot)
-            "M=D",                   # RAM[SP] = D
+            "A=M",
+            "M=D",
             "@SP",
-            "M=M+1",                 # SP++
+            "M=M+1",
         )
-
 
     def write_pop(self, segment: Segment, index: int) -> None:
         """Emit asm to pop the top of stack into segment[index]."""
@@ -132,22 +144,20 @@ class CodeWriter:
             case Segment.CONSTANT:
                 raise ValueError("Cannot pop into constant segment")
             case Segment.LOCAL | Segment.ARGUMENT | Segment.THIS | Segment.THAT:
-                # Target address depends on a base pointer; stash it in R13
-                # so it survives the stack pop that follows.
                 base = _BASE_POINTER[segment]
                 self._emit(
                     f"@{index}",
                     "D=A",
                     f"@{base}",
-                    "D=D+M",                 # D = base + index
+                    "D=D+M",
                     "@R13",
-                    "M=D",                   # R13 = target address
+                    "M=D",
                     "@SP",
-                    "AM=M-1",                # SP--, A = top
-                    "D=M",                   # D = popped value
+                    "AM=M-1",
+                    "D=M",
                     "@R13",
-                    "A=M",                   # A = saved target address
-                    "M=D",                   # RAM[target] = D
+                    "A=M",
+                    "M=D",
                 )
             case Segment.TEMP:
                 self._pop_into_fixed_address(5 + index)
@@ -158,20 +168,42 @@ class CodeWriter:
             case _:
                 raise ValueError(f"Unknown segment: {segment}")
 
+    def write_label(self, name: str) -> None:
+        """Emit asm for `label X` — declare a scoped label."""
+        raise NotImplementedError
+
+    def write_goto(self, label: str) -> None:
+        """Emit asm for `goto X` — unconditional jump."""
+        raise NotImplementedError
+
+    def write_if_goto(self, label: str) -> None:
+        """Emit asm for `if-goto X` — pop top of stack; jump if nonzero."""
+        raise NotImplementedError
+
+    def write_function(self, name: str, n_locals: int) -> None:
+        """Emit asm for `function f n` — declare function, zero-init n locals."""
+        raise NotImplementedError
+
+    def write_call(self, name: str, n_args: int) -> None:
+        """Emit asm for `call f n` — save caller frame, set up callee, jump."""
+        raise NotImplementedError
+
+    def write_return(self) -> None:
+        """Emit asm for `return` — restore caller frame, place return value."""
+        raise NotImplementedError
+
     def _pop_into_fixed_address(self, target: int | str) -> None:
-        """Pop the top of stack into RAM[@target], where target is a constant."""
         self._emit(
             "@SP",
-            "AM=M-1",                # SP--, A = top
-            "D=M",                   # D = popped value
+            "AM=M-1",
+            "D=M",
             f"@{target}",
-            "M=D",                   # RAM[target] = D
+            "M=D",
         )
 
     def close(self) -> None:
         self._out.close()
 
     def _emit(self, *lines: str) -> None:
-        """Write one or more asm lines."""
         for line in lines:
             self._out.write(line + "\n")
