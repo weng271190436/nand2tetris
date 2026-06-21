@@ -73,8 +73,13 @@ def translate(input_path: Path) -> Path:
         asm_path = input_path / f"{input_path.name}.asm"
         writer = CodeWriter(asm_path)
         try:
-            writer.write_init()
-            for vm_path in sorted(input_path.glob("*.vm")):
+            vm_files = sorted(input_path.glob("*.vm"))
+            # Convention: bootstrap only when Sys.vm is present (implies a full program
+            # with Sys.init). Standalone programs (BasicLoop, FibonacciSeries) skip it
+            # so the test harness can set SP/LCL/ARG itself.
+            if any(f.name == "Sys.vm" for f in vm_files):
+                writer.write_init()
+            for vm_path in vm_files:
                 _dispatch(writer, vm_path)
         finally:
             writer.close()

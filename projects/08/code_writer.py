@@ -170,15 +170,24 @@ class CodeWriter:
 
     def write_label(self, name: str) -> None:
         """Emit asm for `label X` — declare a scoped label."""
-        raise NotImplementedError
+        self._emit(f"({self._scoped(name)})")
 
     def write_goto(self, label: str) -> None:
         """Emit asm for `goto X` — unconditional jump."""
-        raise NotImplementedError
+        self._emit(
+            f"@{self._scoped(label)}",
+            "0;JMP",
+        )
 
     def write_if_goto(self, label: str) -> None:
         """Emit asm for `if-goto X` — pop top of stack; jump if nonzero."""
-        raise NotImplementedError
+        self._emit(
+            "@SP",
+            "AM=M-1",
+            "D=M",                       # D = popped value
+            f"@{self._scoped(label)}",
+            "D;JNE",                     # jump if D != 0 (i.e., true)
+        )
 
     def write_function(self, name: str, n_locals: int) -> None:
         """Emit asm for `function f n` — declare function, zero-init n locals."""
@@ -200,6 +209,12 @@ class CodeWriter:
             f"@{target}",
             "M=D",
         )
+
+    def _scoped(self, label: str) -> str:
+        """Qualify a VM label with its enclosing function (or file) to avoid collisions."""
+        scope = self._function or self._filename
+        assert scope, "Cannot scope a label before set_filename or write_function"
+        return f"{scope}${label}"
 
     def close(self) -> None:
         self._out.close()
