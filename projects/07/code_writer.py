@@ -8,6 +8,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TextIO
 
+from parser import Segment
+
 
 # Binary ALU ops: the rhs goes into M (= top-of-stack minus one) after
 # `D=y; A=SP-1`. Each entry says "what to put on the right of M=".
@@ -29,6 +31,15 @@ _COMPARISON_JUMPS = {
     "eq": "JEQ",
     "gt": "JGT",
     "lt": "JLT",
+}
+
+
+# Pointer-based segments map to their base-pointer symbol in RAM.
+_BASE_POINTER = {
+    Segment.LOCAL:    "LCL",
+    Segment.ARGUMENT: "ARG",
+    Segment.THIS:     "THIS",
+    Segment.THAT:     "THAT",
 }
 
 
@@ -81,13 +92,81 @@ class CodeWriter:
         else:
             raise ValueError(f"Unknown arithmetic op: {op}")
 
-    def write_push(self, segment: str, index: int) -> None:
+    def write_push(self, segment: Segment, index: int) -> None:
         """Emit asm to push the value from segment[index] onto the stack."""
-        raise NotImplementedError
+        # 1. Load the value to push into D.
+        match segment:
+            case Segment.CONSTANT:
+                self._emit(f"@{index}", "D=A")
+            case Segment.LOCAL | Segment.ARGUMENT | Segment.THIS | Segment.THAT:
+                base = _BASE_POINTER[segment]
+                self._emit(
+                    f"@{index}",
+                    "D=A",
+                    f"@{base}",
+                    "A=D+M",             # A = base + index
+                    "D=M",               # D = RAM[base + index]
+                )
+            case Segment.TEMP:
+                self._emit(f"@{5 + index}", "D=M")
+            case Segment.POINTER:
+                self._emit(f"@{3 + index}", "D=M")
+            case Segment.STATIC:
+                self._emit(f"@{self._filename}.{index}", "D=M")
+            case _:
+                raise ValueError(f"Unknown segment: {segment}")
 
-    def write_pop(self, segment: str, index: int) -> None:
+        # 2. Push D onto the stack: RAM[SP] = D; SP++.
+        self._emit(
+            "@SP",
+            "A=M",                   # A = SP (next free slot)
+            "M=D",                   # RAM[SP] = D
+            "@SP",
+            "M=M+1",                 # SP++
+        )
+
+
+    def write_pop(self, segment: Segment, index: int) -> None:
         """Emit asm to pop the top of stack into segment[index]."""
-        raise NotImplementedError
+        match segment:
+            case Segment.CONSTANT:
+                raise ValueError("Cannot pop into constant segment")
+            case Segment.LOCAL | Segment.ARGUMENT | Segment.THIS | Segment.THAT:
+                # Target address depends on a base pointer; stash it in R13
+                # so it survives the stack pop that follows.
+                base = _BASE_POINTER[segment]
+                self._emit(
+                    f"@{index}",
+                    "D=A",
+                    f"@{base}",
+                    "D=D+M",                 # D = base + index
+                    "@R13",
+                    "M=D",                   # R13 = target address
+                    "@SP",
+                    "AM=M-1",                # SP--, A = top
+                    "D=M",                   # D = popped value
+                    "@R13",
+                    "A=M",                   # A = saved target address
+                    "M=D",                   # RAM[target] = D
+                )
+            case Segment.TEMP:
+                self._pop_into_fixed_address(5 + index)
+            case Segment.POINTER:
+                self._pop_into_fixed_address(3 + index)
+            case Segment.STATIC:
+                self._pop_into_fixed_address(f"{self._filename}.{index}")
+            case _:
+                raise ValueError(f"Unknown segment: {segment}")
+
+    def _pop_into_fixed_address(self, target: int | str) -> None:
+        """Pop the top of stack into RAM[@target], where target is a constant."""
+        self._emit(
+            "@SP",
+            "AM=M-1",                # SP--, A = top
+            "D=M",                   # D = popped value
+            f"@{target}",
+            "M=D",                   # RAM[target] = D
+        )
 
     def close(self) -> None:
         self._out.close()

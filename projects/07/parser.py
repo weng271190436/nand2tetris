@@ -3,8 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Iterator
+
+
+class Segment(Enum):
+    CONSTANT = "constant"
+    LOCAL    = "local"
+    ARGUMENT = "argument"
+    THIS     = "this"
+    THAT     = "that"
+    TEMP     = "temp"
+    POINTER  = "pointer"
+    STATIC   = "static"
 
 
 @dataclass(frozen=True)
@@ -14,13 +26,13 @@ class Arithmetic:
 
 @dataclass(frozen=True)
 class Push:
-    segment: str
+    segment: Segment
     index: int
 
 
 @dataclass(frozen=True)
 class Pop:
-    segment: str
+    segment: Segment
     index: int
 
 
@@ -42,8 +54,8 @@ def parse(path: Path) -> Iterator[Command]:
         if head in ARITHMETIC_OPS:
             yield Arithmetic(op=head)
         elif head == "push":
-            yield Push(segment=tokens[1], index=int(tokens[2]))
+            yield Push(segment=Segment(tokens[1]), index=int(tokens[2]))
         elif head == "pop":
-            yield Pop(segment=tokens[1], index=int(tokens[2]))
+            yield Pop(segment=Segment(tokens[1]), index=int(tokens[2]))
         else:
             raise ValueError(f"Unknown VM command: {line!r}")

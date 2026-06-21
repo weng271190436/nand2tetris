@@ -15,7 +15,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from parser import parse, Arithmetic, Push, Pop
+from parser import parse, Arithmetic, Push, Pop, Segment
 from vm_translator import translate
 
 
@@ -36,8 +36,8 @@ class TestParser(unittest.TestCase):
         self.assertEqual(
             commands,
             [
-                Push(segment="constant", index=7),
-                Push(segment="constant", index=8),
+                Push(segment=Segment.CONSTANT, index=7),
+                Push(segment=Segment.CONSTANT, index=8),
                 Arithmetic(op="add"),
             ],
         )
