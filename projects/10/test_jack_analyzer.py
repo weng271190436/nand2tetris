@@ -86,15 +86,40 @@ class TestTokenizer(unittest.TestCase):
 
 
 class TestParser(unittest.TestCase):
-    """Placeholder — fill in once CompilationEngine.compile_* are implemented.
+    """Compare our parse-tree XML against the course-provided reference files."""
 
-    The reference parse trees live alongside each .jack file as <Name>.xml.
-    Compare them the same way TestTokenizer does (line-by-line, stripped).
-    """
+    def _compare_parse(self, jack_path: Path) -> None:
+        reference = jack_path.with_suffix(".xml")
+        self.assertTrue(reference.exists(), f"Missing reference: {reference}")
 
-    @unittest.skip("CompilationEngine not yet implemented")
+        # Write to a temp path so we don't clobber the reference file.
+        tmp_out = jack_path.with_name(f"{jack_path.stem}.actual.xml")
+        from parser import CompilationEngine
+
+        engine = CompilationEngine(jack_path, tmp_out)
+        engine.compile()
+
+        try:
+            actual = _read_lines(tmp_out)
+            expected = _read_lines(reference)
+            self.assertEqual(actual, expected, f"Mismatch for {jack_path.name}")
+        finally:
+            tmp_out.unlink()
+
     def test_array_test(self) -> None:
-        pass
+        for jack in sorted((HERE / "ArrayTest").glob("*.jack")):
+            with self.subTest(jack=jack.name):
+                self._compare_parse(jack)
+
+    def test_expressionless_square(self) -> None:
+        for jack in sorted((HERE / "ExpressionLessSquare").glob("*.jack")):
+            with self.subTest(jack=jack.name):
+                self._compare_parse(jack)
+
+    def test_square(self) -> None:
+        for jack in sorted((HERE / "Square").glob("*.jack")):
+            with self.subTest(jack=jack.name):
+                self._compare_parse(jack)
 
 
 if __name__ == "__main__":
