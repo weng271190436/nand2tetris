@@ -65,13 +65,9 @@ def _strip_comments(source: str) -> str:
     return source
 
 
-def tokenize(source_or_path: str | Path) -> Iterator[Token]:
-    """Yield tokens from a .jack source string or path."""
-    if isinstance(source_or_path, Path):
-        source = source_or_path.read_text()
-    else:
-        source = source_or_path
-    source = _strip_comments(source)
+def tokenize(path: Path) -> Iterator[Token]:
+    """Yield tokens from a .jack source file."""
+    source = _strip_comments(path.read_text())
 
     for m in _TOKEN_RE.finditer(source):
         if m.group("string") is not None:
