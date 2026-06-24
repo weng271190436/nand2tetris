@@ -1,9 +1,10 @@
 """Tests for the Project 10 Jack analyzer.
 
-- TestTokenizer compares our flat-token XML against the course-provided
-  <Name>T.xml reference files. Whitespace is normalized to per-line tokens
-  so we tolerate trailing newlines / minor formatting differences.
-- TestParser is left as a placeholder until CompilationEngine is implemented.
+Each .jack file in the test directories generates ONE TestTokenizer test
+(comparing against the corresponding *T.xml) and ONE TestParser test
+(comparing against the corresponding *.xml).
+
+Total: 14 tests (7 .jack files × 2 stages).
 """
 
 from __future__ import annotations
@@ -11,7 +12,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from jack_analyzer import write_token_xml
+from tokenizer import tokenize, token_to_xml
+from parser import CompilationEngine
 
 
 HERE = Path(__file__).resolve().parent
@@ -33,29 +35,20 @@ def _all_jack_files() -> list[Path]:
 
 
 class TestTokenizer(unittest.TestCase):
-    def tearDown(self) -> None:
-        for jack in _all_jack_files():
-            out = jack.with_name(f"{jack.stem}T.xml")
-            # Only remove if it was created by our run (matches our name pattern)
-            # and isn't one of the reference XML files we want to preserve.
-            # Reference files are named exactly the same, so we restore from disk
-            # by not deleting — comparisons are read-only against the reference
-            # files in their original location. We don't write over them because
-            # write_token_xml writes to a freshly-derived path. But that path
-            # IS the same as the reference. So we DO overwrite during the test.
-            # To avoid stomping reference files, we instead write to a temp dir.
-            pass
+    """Tokenizer comparison tests — methods are generated dynamically below."""
 
-    def _compare_tokens(self, jack_path: Path) -> None:
-        # Reference file lives next to the .jack file with the T.xml suffix.
+
+class TestParser(unittest.TestCase):
+    """Parser comparison tests — methods are generated dynamically below."""
+
+
+def _make_tokenizer_test(jack_path: Path):
+    def test(self: unittest.TestCase) -> None:
         reference = jack_path.with_name(f"{jack_path.stem}T.xml")
         self.assertTrue(reference.exists(), f"Missing reference: {reference}")
 
-        # Generate our output to a temp location so we don't clobber the reference.
+        # Write to a temp path so we don't clobber the reference file.
         tmp_out = jack_path.with_name(f"{jack_path.stem}T.actual.xml")
-        # write_token_xml writes to <stem>T.xml; we'll re-route by writing manually.
-        from tokenizer import tokenize, token_to_xml
-
         with tmp_out.open("w") as f:
             f.write("<tokens>\n")
             for tok in tokenize(jack_path):
@@ -63,63 +56,35 @@ class TestTokenizer(unittest.TestCase):
             f.write("</tokens>\n")
 
         try:
-            actual = _read_lines(tmp_out)
-            expected = _read_lines(reference)
-            self.assertEqual(actual, expected, f"Mismatch for {jack_path.name}")
+            self.assertEqual(_read_lines(tmp_out), _read_lines(reference))
         finally:
             tmp_out.unlink()
 
-    def test_array_test(self) -> None:
-        for jack in sorted((HERE / "ArrayTest").glob("*.jack")):
-            with self.subTest(jack=jack.name):
-                self._compare_tokens(jack)
-
-    def test_expressionless_square(self) -> None:
-        for jack in sorted((HERE / "ExpressionLessSquare").glob("*.jack")):
-            with self.subTest(jack=jack.name):
-                self._compare_tokens(jack)
-
-    def test_square(self) -> None:
-        for jack in sorted((HERE / "Square").glob("*.jack")):
-            with self.subTest(jack=jack.name):
-                self._compare_tokens(jack)
+    return test
 
 
-class TestParser(unittest.TestCase):
-    """Compare our parse-tree XML against the course-provided reference files."""
-
-    def _compare_parse(self, jack_path: Path) -> None:
+def _make_parser_test(jack_path: Path):
+    def test(self: unittest.TestCase) -> None:
         reference = jack_path.with_suffix(".xml")
         self.assertTrue(reference.exists(), f"Missing reference: {reference}")
 
-        # Write to a temp path so we don't clobber the reference file.
         tmp_out = jack_path.with_name(f"{jack_path.stem}.actual.xml")
-        from parser import CompilationEngine
-
         engine = CompilationEngine(jack_path, tmp_out)
         engine.compile()
 
         try:
-            actual = _read_lines(tmp_out)
-            expected = _read_lines(reference)
-            self.assertEqual(actual, expected, f"Mismatch for {jack_path.name}")
+            self.assertEqual(_read_lines(tmp_out), _read_lines(reference))
         finally:
             tmp_out.unlink()
 
-    def test_array_test(self) -> None:
-        for jack in sorted((HERE / "ArrayTest").glob("*.jack")):
-            with self.subTest(jack=jack.name):
-                self._compare_parse(jack)
+    return test
 
-    def test_expressionless_square(self) -> None:
-        for jack in sorted((HERE / "ExpressionLessSquare").glob("*.jack")):
-            with self.subTest(jack=jack.name):
-                self._compare_parse(jack)
 
-    def test_square(self) -> None:
-        for jack in sorted((HERE / "Square").glob("*.jack")):
-            with self.subTest(jack=jack.name):
-                self._compare_parse(jack)
+# Generate one tokenizer test and one parser test per .jack file.
+for _jack in _all_jack_files():
+    _name = f"test_{_jack.parent.name}_{_jack.stem}"
+    setattr(TestTokenizer, _name, _make_tokenizer_test(_jack))
+    setattr(TestParser, _name, _make_parser_test(_jack))
 
 
 if __name__ == "__main__":
